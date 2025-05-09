@@ -1,16 +1,33 @@
 package com.em.multiplayersudoku;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
+import com.em.multiplayersudoku.domain.GameAction;
+import com.em.multiplayersudoku.domain.Room;
+
 @Controller
 public class RoomController {
 
     @Autowired
+    private RoomService roomService;
+
+    @Autowired
     private SimpMessagingTemplate messagingTemplate;
+
+    @MessageMapping("/room/{code}/action")
+    public void handleAction(@DestinationVariable String code, GameAction action,
+            @Header("simpSessionId") String sessionId) {
+        Room room = roomService.getRoom(code);
+        // apply game logic: fill cell, check win, handle remove-number power-up…
+        // broadcast updated state to both players:
+        messagingTemplate.convertAndSend("/topic/room/" + code, action);
+    }
 
     @MessageMapping("/create-room")
     @SendTo("/topic/rooms")
