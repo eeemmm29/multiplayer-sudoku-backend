@@ -44,8 +44,9 @@ public class Room {
     }
 
     public void addPlayer(String sessionId) {
-        if (players.size() < 2)
+        if (!players.contains(sessionId) && players.size() < 2) {
             players.add(sessionId);
+        }
     }
 
     public void removePlayer(String sessionId) {

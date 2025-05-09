@@ -22,6 +22,11 @@ public class GameAction {
     private int value; // 1–9 for fill/remove
     private Instant timestamp; // when the action was taken
 
+    // Used when creating a new room.
+    private Difficulty difficulty; // Game difficulty.
+    private int cooldown; // seconds until the remove-number power-up can be used again
+    private int maxStepGap; // max number of steps between two players before a timeout
+
     public GameAction() {
         /* for deserialization */ }
 
@@ -83,4 +88,29 @@ public class GameAction {
     public void setTimestamp(Instant timestamp) {
         this.timestamp = timestamp;
     }
+
+    public Difficulty getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Difficulty difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    public int getCooldown() {
+        return cooldown;
+    }
+
+    public void setCooldown(int cooldown) {
+        this.cooldown = cooldown;
+    }
+
+    public int getMaxStepGap() {
+        return maxStepGap;
+    }
+
+    public void setMaxStepGap(int maxStepGap) {
+        this.maxStepGap = maxStepGap;
+    }
+
 }

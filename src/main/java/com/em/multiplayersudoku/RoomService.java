@@ -13,14 +13,27 @@ public class RoomService {
 
     private final Map<String, Room> rooms = new ConcurrentHashMap<>();
 
-    public Room createRoom(String code, Difficulty difficulty, int removeThreshold, int cooldownSeconds) {
+    public synchronized String createRoom(Difficulty difficulty, int removeThreshold, int cooldownSeconds) {
+        String code;
+        do {
+            code = generateRoomCode();
+        } while (rooms.containsKey(code));
+
         Room room = new Room(code, difficulty, removeThreshold, cooldownSeconds);
         rooms.put(code, room);
-        return room;
+        return code;
     }
 
     public Room getRoom(String code) {
         return rooms.get(code);
+    }
+
+    public void removeRoom(String code) {
+        rooms.remove(code);
+    }
+
+    public boolean roomExists(String code) {
+        return rooms.containsKey(code);
     }
 
     public void addPlayerToRoom(String code, String sessionId) {
@@ -31,6 +44,10 @@ public class RoomService {
 
     public void removePlayerFromAllRooms(String sessionId) {
         rooms.values().forEach(room -> room.removePlayer(sessionId));
+    }
+
+    private String generateRoomCode() {
+        return java.util.UUID.randomUUID().toString().substring(0, 4).toUpperCase();
     }
 
     // … persistence or cleanup methods as needed …
