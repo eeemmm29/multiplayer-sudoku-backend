@@ -73,8 +73,6 @@ public class RoomController {
                 }
                 break;
             case JOIN:
-                // Add player to room (already handled elsewhere, but can notify)
-                messagingTemplate.convertAndSend("/topic/room/" + code, action);
                 // Also broadcast updated boards to all players
                 for (String player : room.getPlayers()) {
                     Cell[][] myBoard = room.getBoardForPlayer(player);
@@ -86,12 +84,26 @@ public class RoomController {
                 }
                 break;
             case LEAVE:
-                // Remove player from room (already handled elsewhere, but can notify)
-                messagingTemplate.convertAndSend("/topic/room/" + code, action);
+                // Also broadcast updated boards to all players
+                for (String player : room.getPlayers()) {
+                    Cell[][] myBoard = room.getBoardForPlayer(player);
+                    String other = room.getPlayers().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
+                    Cell[][] opponentBoard = (other != null) ? room.getBoardForPlayer(other) : null;
+                    int playerCount = room.getPlayers().size();
+                    BoardsMessage boardsMessage = new BoardsMessage(myBoard, opponentBoard, playerCount);
+                    messagingTemplate.convertAndSend("/topic/room/" + code, boardsMessage);
+                }
                 break;
             case WIN:
-                // Notify all players of win
-                messagingTemplate.convertAndSend("/topic/room/" + code, action);
+                // Also broadcast updated boards to all players
+                for (String player : room.getPlayers()) {
+                    Cell[][] myBoard = room.getBoardForPlayer(player);
+                    String other = room.getPlayers().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
+                    Cell[][] opponentBoard = (other != null) ? room.getBoardForPlayer(other) : null;
+                    int playerCount = room.getPlayers().size();
+                    BoardsMessage boardsMessage = new BoardsMessage(myBoard, opponentBoard, playerCount);
+                    messagingTemplate.convertAndSend("/topic/room/" + code, boardsMessage);
+                }
                 break;
             case HEARTBEAT:
                 // Optionally handle keepalive/ping

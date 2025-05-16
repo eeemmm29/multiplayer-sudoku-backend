@@ -46,6 +46,16 @@ public class RoomService {
         rooms.values().forEach(room -> room.removePlayer(sessionId));
     }
 
+    // Find the room that contains the given sessionId
+    public Room findRoomBySessionId(String sessionId) {
+        for (Room room : rooms.values()) {
+            if (room.getPlayers().contains(sessionId)) {
+                return room;
+            }
+        }
+        return null;
+    }
+
     private String generateRoomCode() {
         return java.util.UUID.randomUUID().toString().substring(0, 4).toUpperCase();
     }
