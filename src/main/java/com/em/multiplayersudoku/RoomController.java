@@ -45,6 +45,8 @@ public class RoomController {
             return;
         }
         logger.info("Players in room {}: {}", code, room.getPlayers());
+        Map<String, Boolean> canRemoveOpponentCellMap = new java.util.HashMap<>();
+        Map<String, Long> removeCooldownUntilMap = new java.util.HashMap<>();
         switch (action.getType()) {
             case FILL:
                 if (sessionId != null && room.getPlayers().contains(sessionId)) {
@@ -66,9 +68,26 @@ public class RoomController {
                 }
                 break;
             case REMOVE:
-                // Only allow the user to update their own board
+                logger.info("REMOVE action: sessionId={}, actionSessionId={}", sessionId, action.getSessionId());
                 if (sessionId != null && room.getPlayers().contains(sessionId)) {
-                    room.updateCellForPlayer(sessionId, action.getRow(), action.getCol(), 0);
+                    // If removing from own board, always allow
+                    if (action.getSessionId() != null && action.getSessionId().equals(sessionId)) {
+                        room.updateCellForPlayer(sessionId, action.getRow(), action.getCol(), 0);
+                    } else {
+                        // Removing from opponent's board: validate eligibility
+                        boolean canRemove = canRemoveOpponentCellMap.getOrDefault(sessionId, false);
+                        if (canRemove) {
+                            // Find opponent
+                            String opponentId = room.getPlayers().stream().filter(id -> !id.equals(sessionId))
+                                    .findFirst().orElse(null);
+                            if (opponentId != null && action.getSessionId() != null
+                                    && action.getSessionId().equals(opponentId)) {
+                                room.updateCellForPlayer(opponentId, action.getRow(), action.getCol(), 0);
+                                room.recordRemoveUse(sessionId);
+                            }
+                        }
+                        // else: ignore/remove not allowed
+                    }
                 }
                 break;
             case JOIN:
@@ -103,6 +122,9 @@ public class RoomController {
         }
         // After any board-changing action, broadcast all boards in a single message
         Map<String, Cell[][]> boards = new java.util.HashMap<>();
+        Map<String, Integer> filledCounts = new java.util.HashMap<>();
+        Map<String, Integer> stepsAhead = new java.util.HashMap<>();
+        int maxFilled = 0;
         for (String player : room.getPlayers()) {
             Cell[][] board = room.getBoardForPlayer(player);
             long[][] cooldowns = room.getCellCooldowns(player);
@@ -114,9 +136,44 @@ public class RoomController {
                 }
             }
             boards.put(player, board);
+            int filled = room.getFilledCellCount(player);
+            filledCounts.put(player, filled);
+            if (filled > maxFilled)
+                maxFilled = filled;
+        }
+        // Calculate steps ahead for each player (relative to the max filled)
+        for (String player : room.getPlayers()) {
+            stepsAhead.put(player, filledCounts.get(player)
+                    - (filledCounts.values().stream().filter(x -> x != null).mapToInt(x -> x).max().orElse(0)));
         }
         int playerCount = room.getPlayers().size();
-        BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount);
+        // Build eligibility maps for all players
+        for (String playerSessionId : room.getPlayers()) {
+            boolean canRemove = false;
+            long cooldownUntil = 0L;
+            if (room.getPlayers().size() == 2) {
+                String opponentId = room.getPlayers().stream().filter(id -> !id.equals(playerSessionId)).findFirst()
+                        .orElse(null);
+                if (opponentId != null) {
+                    int myFilled = filledCounts.getOrDefault(playerSessionId, 0);
+                    int oppFilled = filledCounts.getOrDefault(opponentId, 0);
+                    int stepGap = oppFilled - myFilled;
+                    boolean cooldownReady = room.canUseRemove(playerSessionId);
+                    canRemove = (stepGap >= room.getRemoveThreshold()) && cooldownReady;
+                    if (!cooldownReady) {
+                        java.time.Instant last = room.getLastRemoveUsed(playerSessionId);
+                        if (last != null) {
+                            cooldownUntil = last.plusSeconds(room.getCooldownSeconds()).toEpochMilli();
+                        }
+                    }
+                }
+            }
+            canRemoveOpponentCellMap.put(playerSessionId, canRemove);
+            removeCooldownUntilMap.put(playerSessionId, cooldownUntil);
+        }
+        BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount, filledCounts, stepsAhead);
+        boardsListMessage.setCanRemoveOpponentCellMap(canRemoveOpponentCellMap);
+        boardsListMessage.setRemoveCooldownUntilMap(removeCooldownUntilMap);
         messagingTemplate.convertAndSend("/topic/room/" + code, boardsListMessage);
     }
 
@@ -146,13 +203,53 @@ public class RoomController {
         for (String player : room.getPlayers()) {
             room.initializeBoardForPlayer(player, 30);
         }
-        // Broadcast all boards to all players
+        // Broadcast all boards to all players (on game start)
         Map<String, Cell[][]> boards = new java.util.HashMap<>();
+        Map<String, Integer> filledCounts = new java.util.HashMap<>();
+        Map<String, Integer> stepsAhead = new java.util.HashMap<>();
+        int maxFilled = 0;
         for (String player : room.getPlayers()) {
-            boards.put(player, room.getBoardForPlayer(player));
+            Cell[][] board = room.getBoardForPlayer(player);
+            boards.put(player, board);
+            int filled = room.getFilledCellCount(player);
+            filledCounts.put(player, filled);
+            if (filled > maxFilled)
+                maxFilled = filled;
+        }
+        for (String player : room.getPlayers()) {
+            stepsAhead.put(player, filledCounts.get(player)
+                    - (filledCounts.values().stream().filter(x -> x != null).mapToInt(x -> x).max().orElse(0)));
         }
         int playerCount = room.getPlayers().size();
-        BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount);
+        // Build eligibility maps for all players
+        Map<String, Boolean> canRemoveOpponentCellMap = new java.util.HashMap<>();
+        Map<String, Long> removeCooldownUntilMap = new java.util.HashMap<>();
+        for (String playerSessionId : room.getPlayers()) {
+            boolean canRemove = false;
+            long cooldownUntil = 0L;
+            if (room.getPlayers().size() == 2) {
+                String opponentId = room.getPlayers().stream().filter(id -> !id.equals(playerSessionId)).findFirst()
+                        .orElse(null);
+                if (opponentId != null) {
+                    int myFilled = filledCounts.getOrDefault(playerSessionId, 0);
+                    int oppFilled = filledCounts.getOrDefault(opponentId, 0);
+                    int stepGap = oppFilled - myFilled;
+                    boolean cooldownReady = room.canUseRemove(playerSessionId);
+                    canRemove = (stepGap >= room.getRemoveThreshold()) && cooldownReady;
+                    if (!cooldownReady) {
+                        java.time.Instant last = room.getLastRemoveUsed(playerSessionId);
+                        if (last != null) {
+                            cooldownUntil = last.plusSeconds(room.getCooldownSeconds()).toEpochMilli();
+                        }
+                    }
+                }
+            }
+            canRemoveOpponentCellMap.put(playerSessionId, canRemove);
+            removeCooldownUntilMap.put(playerSessionId, cooldownUntil);
+        }
+        BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount, filledCounts, stepsAhead);
+        boardsListMessage.setCanRemoveOpponentCellMap(canRemoveOpponentCellMap);
+        boardsListMessage.setRemoveCooldownUntilMap(removeCooldownUntilMap);
         messagingTemplate.convertAndSend("/topic/room/" + code, boardsListMessage);
     }
 }

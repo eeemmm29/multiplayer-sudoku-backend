@@ -159,5 +159,26 @@ public class Room {
         return cellCooldowns.get(sessionId);
     }
 
+    // Utility: count filled cells (CORRECT_GUESS only) for a player
+    public int getFilledCellCount(String sessionId) {
+        Cell[][] board = playerBoards.get(sessionId);
+        if (board == null)
+            return 0;
+        int count = 0;
+        for (int row = 0; row < board.length; row++) {
+            for (int col = 0; col < board[row].length; col++) {
+                CellStatus status = board[row][col].getStatus();
+                if (status == CellStatus.CORRECT_GUESS) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    public Instant getLastRemoveUsed(String sessionId) {
+        return lastRemoveUsed.get(sessionId);
+    }
+
     // … other game-state methods (puzzle grid, steps behind, etc.) …
 }
