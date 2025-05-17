@@ -77,7 +77,7 @@ public class SudokuGenerator {
 
     /**
      * Removes numbers from the board to create a puzzle with the given number of
-     * clues.
+     * clues, ensuring the puzzle has a unique solution.
      */
     public void removeNumbers(int[][] board, int clues) {
         int cellsToRemove = GRID_SIZE * GRID_SIZE - clues;
@@ -88,12 +88,52 @@ public class SudokuGenerator {
             }
         }
         Collections.shuffle(positions, random);
-        for (int i = 0; i < cellsToRemove; i++) {
+        int removed = 0;
+        for (int i = 0; i < positions.size() && removed < cellsToRemove; i++) {
             int[] pos = positions.get(i);
-            int backup = board[pos[0]][pos[1]];
-            board[pos[0]][pos[1]] = 0;
-            // Optionally: Check for unique solution here (not implemented for brevity)
+            int row = pos[0];
+            int col = pos[1];
+            int backup = board[row][col];
+            board[row][col] = 0;
+            // Check for unique solution
+            if (countSolutions(copyBoard(board), 2) != 1) {
+                board[row][col] = backup; // revert if not unique
+            } else {
+                removed++;
+            }
         }
+    }
+
+    /**
+     * Counts the number of solutions for a given board, up to a maximum.
+     * Returns as soon as more than maxSolutions are found.
+     */
+    public int countSolutions(int[][] board, int maxSolutions) {
+        return countSolutionsHelper(board, 0, 0, maxSolutions, new int[] { 0 });
+    }
+
+    private int countSolutionsHelper(int[][] board, int row, int col, int maxSolutions, int[] count) {
+        if (row == GRID_SIZE) {
+            count[0]++;
+            return count[0];
+        }
+        if (count[0] > maxSolutions)
+            return count[0];
+        int nextRow = (col == GRID_SIZE - 1) ? row + 1 : row;
+        int nextCol = (col == GRID_SIZE - 1) ? 0 : col + 1;
+        if (board[row][col] != 0) {
+            return countSolutionsHelper(board, nextRow, nextCol, maxSolutions, count);
+        }
+        for (int num = 1; num <= GRID_SIZE; num++) {
+            if (isSafe(board, row, col, num)) {
+                board[row][col] = num;
+                countSolutionsHelper(board, nextRow, nextCol, maxSolutions, count);
+                board[row][col] = 0;
+                if (count[0] > maxSolutions)
+                    return count[0];
+            }
+        }
+        return count[0];
     }
 
     /**
