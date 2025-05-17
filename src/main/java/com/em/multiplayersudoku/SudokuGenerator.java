@@ -52,7 +52,7 @@ public class SudokuGenerator {
     /**
      * Generates a fully filled valid Sudoku board.
      */
-    private boolean fillBoard(int[][] board) {
+    public boolean fillBoard(int[][] board) {
         List<Integer> numbers = new ArrayList<>();
         for (int i = 1; i <= GRID_SIZE; i++)
             numbers.add(i);
@@ -79,7 +79,7 @@ public class SudokuGenerator {
      * Removes numbers from the board to create a puzzle with the given number of
      * clues.
      */
-    private void removeNumbers(int[][] board, int clues) {
+    public void removeNumbers(int[][] board, int clues) {
         int cellsToRemove = GRID_SIZE * GRID_SIZE - clues;
         List<int[]> positions = new ArrayList<>();
         for (int row = 0; row < GRID_SIZE; row++) {
@@ -118,7 +118,7 @@ public class SudokuGenerator {
     /**
      * Utility to copy a board.
      */
-    private int[][] copyBoard(int[][] board) {
+    public int[][] copyBoard(int[][] board) {
         int[][] copy = new int[GRID_SIZE][GRID_SIZE];
         for (int i = 0; i < GRID_SIZE; i++) {
             System.arraycopy(board[i], 0, copy[i], 0, GRID_SIZE);

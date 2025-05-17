@@ -20,6 +20,7 @@ public class GameAction {
     private int col; // 0–8 for Sudoku grid
     private int value; // 1–9 for fill/remove
     private Instant timestamp; // when the action was taken
+    private String sessionId; // The player who performed the action (for WIN, the winner)
 
     // Used when creating a new room.
     private Difficulty difficulty; // Game difficulty.
@@ -35,6 +36,7 @@ public class GameAction {
         this.col = col;
         this.value = value;
         this.timestamp = Instant.now();
+        this.sessionId = sessionId;
     }
 
     // Getters and setters
@@ -77,6 +79,14 @@ public class GameAction {
 
     public void setTimestamp(Instant timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
     }
 
     public Difficulty getDifficulty() {

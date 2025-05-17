@@ -5,11 +5,9 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -20,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.em.multiplayersudoku.domain.Difficulty;
 import com.em.multiplayersudoku.domain.GameAction;
+import com.em.multiplayersudoku.domain.GameAction.ActionType;
 import com.em.multiplayersudoku.domain.Room;
 import com.em.multiplayersudoku.domain.RoomCreatedResponse;
 
@@ -52,6 +51,14 @@ public class RoomController {
                 if (sessionId != null && room.getPlayers().contains(sessionId)) {
                     room.updateCellForPlayer(sessionId, action.getRow(), action.getCol(),
                             action.getValue());
+                    // Check for win after a fill
+                    if (room.isPlayerBoardComplete(sessionId)) {
+                        // Broadcast WIN action for this player
+                        GameAction winAction = new GameAction();
+                        winAction.setType(ActionType.WIN);
+                        winAction.setSessionId(sessionId);
+                        messagingTemplate.convertAndSend("/topic/room/" + code, winAction);
+                    }
                 }
                 break;
             case REMOVE:
@@ -67,7 +74,24 @@ public class RoomController {
                 // No-op, just broadcast boards below
                 break;
             case WIN:
-                // No-op, just broadcast boards below
+                // Fill all cells for the winner and broadcast
+                if (sessionId != null && room.getPlayers().contains(sessionId)) {
+                    int[][] solution = room.getSolutionForPlayer(sessionId);
+                    if (solution != null) {
+                        Cell[][] board = room.getBoardForPlayer(sessionId);
+                        for (int row = 0; row < solution.length; row++) {
+                            for (int col = 0; col < solution[row].length; col++) {
+                                board[row][col].setValue(solution[row][col]);
+                                board[row][col].setStatus(com.em.multiplayersudoku.CellStatus.CORRECT_GUESS);
+                            }
+                        }
+                        // Broadcast WIN action to all clients
+                        GameAction winAction = new GameAction();
+                        winAction.setType(ActionType.WIN);
+                        winAction.setSessionId(sessionId);
+                        messagingTemplate.convertAndSend("/topic/room/" + code, winAction);
+                    }
+                }
                 break;
             case HEARTBEAT:
                 // Optionally handle keepalive/ping
@@ -118,12 +142,5 @@ public class RoomController {
         int playerCount = room.getPlayers().size();
         BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount);
         messagingTemplate.convertAndSend("/topic/room/" + code, boardsListMessage);
-    }
-
-    private MessageHeaders createHeaders(String sessionId) {
-        SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
-        headerAccessor.setSessionId(sessionId);
-        headerAccessor.setLeaveMutable(true);
-        return headerAccessor.getMessageHeaders();
     }
 }

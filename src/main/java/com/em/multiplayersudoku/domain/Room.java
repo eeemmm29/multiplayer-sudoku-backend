@@ -1,6 +1,7 @@
 package com.em.multiplayersudoku.domain;
 
 import com.em.multiplayersudoku.Cell;
+import com.em.multiplayersudoku.CellStatus;
 import com.em.multiplayersudoku.SudokuGenerator;
 
 import java.time.Instant;
@@ -21,6 +22,9 @@ public class Room {
 
     // Add a field for the puzzle board (Cell[][]) for each player
     private final ConcurrentHashMap<String, Cell[][]> playerBoards = new ConcurrentHashMap<>();
+
+    // Add a field for the solution board (int[][]) for each player
+    private final ConcurrentHashMap<String, int[][]> playerSolutions = new ConcurrentHashMap<>();
 
     public Room(String code, Difficulty difficulty, int removeThreshold, int cooldownSeconds) {
         this.code = code;
@@ -59,6 +63,7 @@ public class Room {
         players.remove(sessionId);
         lastRemoveUsed.remove(sessionId);
         playerBoards.remove(sessionId);
+        playerSolutions.remove(sessionId);
     }
 
     public boolean canUseRemove(String sessionId) {
@@ -73,8 +78,20 @@ public class Room {
     // Add a method to initialize a board for a player
     public void initializeBoardForPlayer(String sessionId, int clues) {
         SudokuGenerator generator = new SudokuGenerator();
-        Cell[][] board = generator.generatePuzzleWithStatus(clues);
-        playerBoards.put(sessionId, board);
+        int[][] solution = new int[SudokuGenerator.GRID_SIZE][SudokuGenerator.GRID_SIZE];
+        generator.fillBoard(solution); // generate a full solution
+        int[][] puzzle = generator.copyBoard(solution);
+        generator.removeNumbers(puzzle, clues);
+        Cell[][] cellBoard = new Cell[SudokuGenerator.GRID_SIZE][SudokuGenerator.GRID_SIZE];
+        for (int row = 0; row < SudokuGenerator.GRID_SIZE; row++) {
+            for (int col = 0; col < SudokuGenerator.GRID_SIZE; col++) {
+                int value = puzzle[row][col];
+                CellStatus status = (value == 0) ? CellStatus.TO_GUESS : CellStatus.GIVEN;
+                cellBoard[row][col] = new Cell(value, status);
+            }
+        }
+        playerBoards.put(sessionId, cellBoard);
+        playerSolutions.put(sessionId, solution);
     }
 
     public Cell[][] getBoardForPlayer(String sessionId) {
@@ -84,10 +101,36 @@ public class Room {
     // Optionally, add a method to update a cell for a player
     public void updateCellForPlayer(String sessionId, int row, int col, int value) {
         Cell[][] board = playerBoards.get(sessionId);
-        if (board != null) {
+        int[][] solution = playerSolutions.get(sessionId);
+        if (board != null && solution != null) {
             board[row][col].setValue(value);
-            // You can add logic to update status here
+            if (value == 0) {
+                board[row][col].setStatus(CellStatus.TO_GUESS);
+            } else if (value == solution[row][col]) {
+                board[row][col].setStatus(CellStatus.CORRECT_GUESS);
+            } else {
+                board[row][col].setStatus(CellStatus.WRONG_GUESS);
+            }
         }
+    }
+
+    public boolean isPlayerBoardComplete(String sessionId) {
+        Cell[][] board = playerBoards.get(sessionId);
+        int[][] solution = playerSolutions.get(sessionId);
+        if (board == null || solution == null)
+            return false;
+        for (int row = 0; row < board.length; row++) {
+            for (int col = 0; col < board[row].length; col++) {
+                if (board[row][col].getValue() != solution[row][col]) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public int[][] getSolutionForPlayer(String sessionId) {
+        return playerSolutions.get(sessionId);
     }
 
     // … other game-state methods (puzzle grid, steps behind, etc.) …
