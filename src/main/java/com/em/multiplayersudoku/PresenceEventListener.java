@@ -44,15 +44,14 @@ public class PresenceEventListener {
         Room room = roomService.findRoomBySessionId(sessionId);
         if (room != null) {
             room.removePlayer(sessionId);
-            // Broadcast updated boards to all players in the room
+            // Broadcast updated boards to all players in the room using BoardsListMessage
+            java.util.Map<String, Cell[][]> boards = new java.util.HashMap<>();
             for (String player : room.getPlayers()) {
-                Cell[][] myBoard = room.getBoardForPlayer(player);
-                String other = room.getPlayers().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
-                Cell[][] opponentBoard = (other != null) ? room.getBoardForPlayer(other) : null;
-                int playerCount = room.getPlayers().size();
-                BoardsMessage boardsMessage = new BoardsMessage(myBoard, opponentBoard, playerCount);
-                messagingTemplate.convertAndSend("/topic/room/" + room.getCode(), boardsMessage);
+                boards.put(player, room.getBoardForPlayer(player));
             }
+            int playerCount = room.getPlayers().size();
+            BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount);
+            messagingTemplate.convertAndSend("/topic/room/" + room.getCode(), boardsListMessage);
         }
         roomService.removePlayerFromAllRooms(sessionId);
     }
