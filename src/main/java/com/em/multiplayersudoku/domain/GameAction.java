@@ -15,7 +15,6 @@ public class GameAction {
         HEARTBEAT // keepalive/ping
     }
 
-    private String sessionId; // sender’s WebSocket session ID
     private ActionType type; // what kind of action
     private int row; // 0–8 for Sudoku grid
     private int col; // 0–8 for Sudoku grid
@@ -31,7 +30,6 @@ public class GameAction {
         /* for deserialization */ }
 
     public GameAction(String sessionId, ActionType type, int row, int col, int value) {
-        this.sessionId = sessionId;
         this.type = type;
         this.row = row;
         this.col = col;
@@ -40,14 +38,6 @@ public class GameAction {
     }
 
     // Getters and setters
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-    }
 
     public ActionType getType() {
         return type;

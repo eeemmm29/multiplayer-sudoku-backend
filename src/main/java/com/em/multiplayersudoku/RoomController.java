@@ -1,16 +1,19 @@
 package com.em.multiplayersudoku;
 
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,86 +48,50 @@ public class RoomController {
         logger.info("Players in room {}: {}", code, room.getPlayers());
         switch (action.getType()) {
             case FILL:
-                room.updateCellForPlayer(sessionId, action.getRow(), action.getCol(), action.getValue());
-                // Broadcast both boards to all players
-                for (String player : room.getPlayers()) {
-                    Cell[][] myBoard = room.getBoardForPlayer(player);
-                    String other = room.getPlayers().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
-                    Cell[][] opponentBoard = (other != null) ? room.getBoardForPlayer(other) : null;
-                    int playerCount = room.getPlayers().size();
-                    BoardsMessage boardsMessage = new BoardsMessage(myBoard, opponentBoard, playerCount);
-                    messagingTemplate.convertAndSend("/topic/room/" + code, boardsMessage);
+                // Only allow the user to update their own board
+                if (sessionId != null && room.getPlayers().contains(sessionId)) {
+                    room.updateCellForPlayer(sessionId, action.getRow(), action.getCol(),
+                            action.getValue());
                 }
                 break;
             case REMOVE:
-                for (String player : room.getPlayers()) {
-                    if (!player.equals(sessionId)) {
-                        room.updateCellForPlayer(player, action.getRow(), action.getCol(), 0);
-                    }
-                }
-                // Broadcast both boards to all players
-                for (String player : room.getPlayers()) {
-                    Cell[][] myBoard = room.getBoardForPlayer(player);
-                    String other = room.getPlayers().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
-                    Cell[][] opponentBoard = (other != null) ? room.getBoardForPlayer(other) : null;
-                    int playerCount = room.getPlayers().size();
-                    BoardsMessage boardsMessage = new BoardsMessage(myBoard, opponentBoard, playerCount);
-                    messagingTemplate.convertAndSend("/topic/room/" + code, boardsMessage);
+                // Only allow the user to update their own board
+                if (sessionId != null && room.getPlayers().contains(sessionId)) {
+                    room.updateCellForPlayer(sessionId, action.getRow(), action.getCol(), 0);
                 }
                 break;
             case JOIN:
-                // Also broadcast updated boards to all players
-                for (String player : room.getPlayers()) {
-                    Cell[][] myBoard = room.getBoardForPlayer(player);
-                    String other = room.getPlayers().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
-                    Cell[][] opponentBoard = (other != null) ? room.getBoardForPlayer(other) : null;
-                    int playerCount = room.getPlayers().size();
-                    BoardsMessage boardsMessage = new BoardsMessage(myBoard, opponentBoard, playerCount);
-                    messagingTemplate.convertAndSend("/topic/room/" + code, boardsMessage);
-                }
+                // No-op, just broadcast boards below
                 break;
             case LEAVE:
-                // Also broadcast updated boards to all players
-                for (String player : room.getPlayers()) {
-                    Cell[][] myBoard = room.getBoardForPlayer(player);
-                    String other = room.getPlayers().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
-                    Cell[][] opponentBoard = (other != null) ? room.getBoardForPlayer(other) : null;
-                    int playerCount = room.getPlayers().size();
-                    BoardsMessage boardsMessage = new BoardsMessage(myBoard, opponentBoard, playerCount);
-                    messagingTemplate.convertAndSend("/topic/room/" + code, boardsMessage);
-                }
+                // No-op, just broadcast boards below
                 break;
             case WIN:
-                // Also broadcast updated boards to all players
-                for (String player : room.getPlayers()) {
-                    Cell[][] myBoard = room.getBoardForPlayer(player);
-                    String other = room.getPlayers().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
-                    Cell[][] opponentBoard = (other != null) ? room.getBoardForPlayer(other) : null;
-                    int playerCount = room.getPlayers().size();
-                    BoardsMessage boardsMessage = new BoardsMessage(myBoard, opponentBoard, playerCount);
-                    messagingTemplate.convertAndSend("/topic/room/" + code, boardsMessage);
-                }
+                // No-op, just broadcast boards below
                 break;
             case HEARTBEAT:
                 // Optionally handle keepalive/ping
-                break;
+                return;
         }
+        // After any board-changing action, broadcast all boards in a single message
+        Map<String, Cell[][]> boards = new java.util.HashMap<>();
+        for (String player : room.getPlayers()) {
+            logger.info("Player {}: {}", player, room.getBoardForPlayer(player));
+            boards.put(player, room.getBoardForPlayer(player));
+        }
+        int playerCount = room.getPlayers().size();
+        BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount);
+        messagingTemplate.convertAndSend("/topic/room/" + code, boardsListMessage);
     }
 
     @PostMapping("/room")
     @ResponseBody
-    public RoomCreatedResponse createRoom(@RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
-        logger.info("createRoom (HTTP): sessionId={}", sessionId);
+    public RoomCreatedResponse createRoom() {
         // You can add parameters to the request if you want to specify difficulty, etc.
         Difficulty difficulty = Difficulty.EASY; // Default or based on request
         int maxStepGap = 5;
         int cooldownSeconds = 10;
-
         String code = roomService.createRoom(difficulty, maxStepGap, cooldownSeconds);
-        Room room = roomService.getRoom(code);
-        if (sessionId != null && !sessionId.isEmpty()) {
-            room.addPlayer(sessionId);
-        }
         return new RoomCreatedResponse(code);
     }
 
@@ -139,19 +106,24 @@ public class RoomController {
         logger.info("Room object identity: {}", System.identityHashCode(room));
         roomService.addPlayerToRoom(code, sessionId);
         logger.info("Players in room {} after add: {}", code, room.getPlayers());
-        // For now, use 30 clues for medium difficulty
-        room.initializeBoardForPlayer(sessionId, 30);
-        // Send both boards to both players
-        int playerCount = room.getPlayers().size();
+        // Initialize a board for every player in the room
         for (String player : room.getPlayers()) {
-            Cell[][] myBoard = room.getBoardForPlayer(player);
-            String other = room.getPlayers().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
-            Cell[][] opponentBoard = (other != null) ? room.getBoardForPlayer(other) : null;
-            BoardsMessage boardsMessage = new BoardsMessage(myBoard, opponentBoard, playerCount);
-            logger.info("Sending boards to player {}: myBoard={}, opponentBoard={}, playerCount={}, roomHash={}",
-                    player,
-                    myBoard != null, opponentBoard != null, playerCount, System.identityHashCode(room));
-            messagingTemplate.convertAndSendToUser(player, "/topic/room/" + code, boardsMessage);
+            room.initializeBoardForPlayer(player, 30);
         }
+        // Broadcast all boards to all players
+        Map<String, Cell[][]> boards = new java.util.HashMap<>();
+        for (String player : room.getPlayers()) {
+            boards.put(player, room.getBoardForPlayer(player));
+        }
+        int playerCount = room.getPlayers().size();
+        BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount);
+        messagingTemplate.convertAndSend("/topic/room/" + code, boardsListMessage);
+    }
+
+    private MessageHeaders createHeaders(String sessionId) {
+        SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
+        headerAccessor.setSessionId(sessionId);
+        headerAccessor.setLeaveMutable(true);
+        return headerAccessor.getMessageHeaders();
     }
 }
