@@ -28,6 +28,8 @@ import com.em.multiplayersudoku.domain.RoomCreatedResponse;
 @RequestMapping("/api")
 public class RoomController {
     private static final Logger logger = LoggerFactory.getLogger(RoomController.class);
+    Map<String, Boolean> canRemoveOpponentCellMap = new java.util.HashMap<>();
+    Map<String, Long> removeCooldownUntilMap = new java.util.HashMap<>();
 
     @Autowired
     private RoomService roomService;
@@ -45,8 +47,6 @@ public class RoomController {
             return;
         }
         logger.info("Players in room {}: {}", code, room.getPlayers());
-        Map<String, Boolean> canRemoveOpponentCellMap = new java.util.HashMap<>();
-        Map<String, Long> removeCooldownUntilMap = new java.util.HashMap<>();
         switch (action.getType()) {
             case FILL:
                 if (sessionId != null && room.getPlayers().contains(sessionId)) {
