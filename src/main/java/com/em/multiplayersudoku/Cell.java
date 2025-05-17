@@ -6,6 +6,7 @@ package com.em.multiplayersudoku;
 public class Cell {
     private int value; // 1-9, or 0 for empty
     private CellStatus status;
+    private long cooldownUntil = 0; // epoch millis
 
     public Cell(int value, CellStatus status) {
         this.value = value;
@@ -26,5 +27,13 @@ public class Cell {
 
     public void setStatus(CellStatus status) {
         this.status = status;
+    }
+
+    public long getCooldownUntil() {
+        return cooldownUntil;
+    }
+
+    public void setCooldownUntil(long cooldownUntil) {
+        this.cooldownUntil = cooldownUntil;
     }
 }

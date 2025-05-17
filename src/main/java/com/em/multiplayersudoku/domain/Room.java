@@ -26,6 +26,9 @@ public class Room {
     // Add a field for the solution board (int[][]) for each player
     private final ConcurrentHashMap<String, int[][]> playerSolutions = new ConcurrentHashMap<>();
 
+    private final ConcurrentHashMap<String, long[][]> cellCooldowns = new ConcurrentHashMap<>();
+    private static final int CELL_COOLDOWN_SECONDS = 3;
+
     public Room(String code, Difficulty difficulty, int removeThreshold, int cooldownSeconds) {
         this.code = code;
         this.difficulty = difficulty;
@@ -64,6 +67,7 @@ public class Room {
         lastRemoveUsed.remove(sessionId);
         playerBoards.remove(sessionId);
         playerSolutions.remove(sessionId);
+        cellCooldowns.remove(sessionId);
     }
 
     public boolean canUseRemove(String sessionId) {
@@ -92,6 +96,24 @@ public class Room {
         }
         playerBoards.put(sessionId, cellBoard);
         playerSolutions.put(sessionId, solution);
+        cellCooldowns.put(sessionId, new long[SudokuGenerator.GRID_SIZE][SudokuGenerator.GRID_SIZE]);
+    }
+
+    public boolean isCellOnCooldown(String sessionId, int row, int col) {
+        long[][] cooldowns = cellCooldowns.get(sessionId);
+        return cooldowns != null && System.currentTimeMillis() < cooldowns[row][col];
+    }
+
+    public void setCellCooldown(String sessionId, int row, int col) {
+        long[][] cooldowns = cellCooldowns.get(sessionId);
+        if (cooldowns != null) {
+            cooldowns[row][col] = System.currentTimeMillis() + CELL_COOLDOWN_SECONDS * 1000;
+        }
+    }
+
+    public long getCellCooldownUntil(String sessionId, int row, int col) {
+        long[][] cooldowns = cellCooldowns.get(sessionId);
+        return (cooldowns != null) ? cooldowns[row][col] : 0;
     }
 
     public Cell[][] getBoardForPlayer(String sessionId) {
@@ -131,6 +153,10 @@ public class Room {
 
     public int[][] getSolutionForPlayer(String sessionId) {
         return playerSolutions.get(sessionId);
+    }
+
+    public long[][] getCellCooldowns(String sessionId) {
+        return cellCooldowns.get(sessionId);
     }
 
     // … other game-state methods (puzzle grid, steps behind, etc.) …

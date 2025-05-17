@@ -47,13 +47,17 @@ public class RoomController {
         logger.info("Players in room {}: {}", code, room.getPlayers());
         switch (action.getType()) {
             case FILL:
-                // Only allow the user to update their own board
                 if (sessionId != null && room.getPlayers().contains(sessionId)) {
-                    room.updateCellForPlayer(sessionId, action.getRow(), action.getCol(),
-                            action.getValue());
-                    // Check for win after a fill
+                    // Block input if cell is on cooldown
+                    if (room.isCellOnCooldown(sessionId, action.getRow(), action.getCol())) {
+                        break;
+                    }
+                    int[][] solution = room.getSolutionForPlayer(sessionId);
+                    if (solution != null && action.getValue() != solution[action.getRow()][action.getCol()]) {
+                        room.setCellCooldown(sessionId, action.getRow(), action.getCol());
+                    }
+                    room.updateCellForPlayer(sessionId, action.getRow(), action.getCol(), action.getValue());
                     if (room.isPlayerBoardComplete(sessionId)) {
-                        // Broadcast WIN action for this player
                         GameAction winAction = new GameAction();
                         winAction.setType(ActionType.WIN);
                         winAction.setSessionId(sessionId);
@@ -100,8 +104,16 @@ public class RoomController {
         // After any board-changing action, broadcast all boards in a single message
         Map<String, Cell[][]> boards = new java.util.HashMap<>();
         for (String player : room.getPlayers()) {
-            logger.info("Player {}: {}", player, room.getBoardForPlayer(player));
-            boards.put(player, room.getBoardForPlayer(player));
+            Cell[][] board = room.getBoardForPlayer(player);
+            long[][] cooldowns = room.getCellCooldowns(player);
+            if (board != null && cooldowns != null) {
+                for (int row = 0; row < board.length; row++) {
+                    for (int col = 0; col < board[row].length; col++) {
+                        board[row][col].setCooldownUntil(cooldowns[row][col]);
+                    }
+                }
+            }
+            boards.put(player, board);
         }
         int playerCount = room.getPlayers().size();
         BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount);
