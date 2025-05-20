@@ -12,6 +12,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -174,16 +175,33 @@ public class RoomController {
         BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount, filledCounts, stepsAhead);
         boardsListMessage.setCanRemoveOpponentCellMap(canRemoveOpponentCellMap);
         boardsListMessage.setRemoveCooldownUntilMap(removeCooldownUntilMap);
+        boardsListMessage.setMaxStepGap(room.getRemoveThreshold());
+        boardsListMessage.setCooldownSeconds(room.getCooldownSeconds());
+        boardsListMessage.setDifficulty(room.getDifficulty().name());
         messagingTemplate.convertAndSend("/topic/room/" + code, boardsListMessage);
     }
 
     @PostMapping("/room")
     @ResponseBody
-    public RoomCreatedResponse createRoom() {
-        // You can add parameters to the request if you want to specify difficulty, etc.
+    public RoomCreatedResponse createRoom(@RequestBody(required = false) Map<String, Object> body) {
         Difficulty difficulty = Difficulty.EASY; // Default or based on request
         int maxStepGap = 5;
         int cooldownSeconds = 10;
+        if (body != null) {
+            if (body.get("difficulty") instanceof String) {
+                try {
+                    difficulty = Difficulty.valueOf(((String) body.get("difficulty")).toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    // fallback to EASY
+                }
+            }
+            if (body.get("maxStepGap") instanceof Number) {
+                maxStepGap = ((Number) body.get("maxStepGap")).intValue();
+            }
+            if (body.get("cooldownSeconds") instanceof Number) {
+                cooldownSeconds = ((Number) body.get("cooldownSeconds")).intValue();
+            }
+        }
         String code = roomService.createRoom(difficulty, maxStepGap, cooldownSeconds);
         return new RoomCreatedResponse(code);
     }
@@ -250,6 +268,9 @@ public class RoomController {
         BoardsListMessage boardsListMessage = new BoardsListMessage(boards, playerCount, filledCounts, stepsAhead);
         boardsListMessage.setCanRemoveOpponentCellMap(canRemoveOpponentCellMap);
         boardsListMessage.setRemoveCooldownUntilMap(removeCooldownUntilMap);
+        boardsListMessage.setMaxStepGap(room.getRemoveThreshold());
+        boardsListMessage.setCooldownSeconds(room.getCooldownSeconds());
+        boardsListMessage.setDifficulty(room.getDifficulty().name());
         messagingTemplate.convertAndSend("/topic/room/" + code, boardsListMessage);
     }
 }

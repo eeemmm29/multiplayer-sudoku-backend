@@ -11,6 +11,9 @@ public class BoardsListMessage {
     private long removeCooldownUntil; // epoch millis, 0 if available
     private Map<String, Boolean> canRemoveOpponentCellMap;
     private Map<String, Long> removeCooldownUntilMap;
+    private int maxStepGap;
+    private int cooldownSeconds;
+    private String difficulty;
 
     public BoardsListMessage(Map<String, Cell[][]> boards, int playerCount, Map<String, Integer> filledCounts,
             Map<String, Integer> stepsAhead) {
@@ -82,5 +85,29 @@ public class BoardsListMessage {
 
     public void setRemoveCooldownUntilMap(Map<String, Long> map) {
         this.removeCooldownUntilMap = map;
+    }
+
+    public int getMaxStepGap() {
+        return maxStepGap;
+    }
+
+    public void setMaxStepGap(int maxStepGap) {
+        this.maxStepGap = maxStepGap;
+    }
+
+    public int getCooldownSeconds() {
+        return cooldownSeconds;
+    }
+
+    public void setCooldownSeconds(int cooldownSeconds) {
+        this.cooldownSeconds = cooldownSeconds;
+    }
+
+    public String getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(String difficulty) {
+        this.difficulty = difficulty;
     }
 }
