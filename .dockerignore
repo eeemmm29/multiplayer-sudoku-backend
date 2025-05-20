@@ -1,0 +1,30 @@
+# Ignore Maven build output
+target/
+
+# Logs
+*.log
+
+# IDE and OS files
+*.swp
+*.iml
+*.ipr
+*.iws
+.idea/
+.DS_Store
+.vscode/
+
+# Env and credentials
+.env
+.env.*
+*.keystore
+
+# Git
+.git/
+.gitattributes
+.gitignore
+
+# Docker
+Dockerfile
+
+# Misc
+*.md
