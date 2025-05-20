@@ -20,17 +20,6 @@ public class BoardsListMessage {
         this.stepsAhead = stepsAhead;
     }
 
-    // New constructor for power-up eligibility
-    public BoardsListMessage(Map<String, Cell[][]> boards, int playerCount, Map<String, Integer> filledCounts,
-            Map<String, Integer> stepsAhead, boolean canRemoveOpponentCell, long removeCooldownUntil) {
-        this.boards = boards;
-        this.playerCount = playerCount;
-        this.filledCounts = filledCounts;
-        this.stepsAhead = stepsAhead;
-        this.canRemoveOpponentCell = canRemoveOpponentCell;
-        this.removeCooldownUntil = removeCooldownUntil;
-    }
-
     public Map<String, Cell[][]> getBoards() {
         return boards;
     }
